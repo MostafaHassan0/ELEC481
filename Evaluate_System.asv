@@ -1,0 +1,21 @@
+function [result, cond_obsv, cond_ctl] = Evaluate_System(sys)
+
+result = false; 
+cond_obsv = 0; 
+cond_ctl = 0; 
+
+sys_tf = tf(sys);
+
+Ctl = ctrb(sys);
+Obsv = obsv(sys);
+rC = rank(Ctl);
+rO = rank(Obsv);
+
+if (rC ==4 && rO ==4)
+    result = true; 
+    cond_obsv = cond(Obsv);
+    cond_ctl = cond(Ctl); 
+end
+
+
+end
