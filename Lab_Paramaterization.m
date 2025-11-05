@@ -1,3 +1,4 @@
+function [sys_final] = Lab_Paramaterization()
 m = 0.12; 
 a = 1.65; 
 b = 6.2; 
@@ -51,39 +52,9 @@ writecell(Results, 'maglev_results.xlsx');
 
 disp("At y10 = 0.9cm, and y20 = -0.9cm, the following is a template A matrix "); 
 
-[sys_final, ~, ~, ~] = Create_System(a, b, c, d, m, g, yc, y10_range(end), y20_range(end)); 
+[sys_final, ~, ~, ~] = Create_System(a, b, c, d, m, g, yc, 0.9, -0.9); 
 
-A_final = sys_final.A
-B_final = sys_final.B;
-C_final = sys_final.C;
-D_final = sys_final.D;
-
-sys = ss(A_final,B_final,C_final,D_final);
-G = tf(sys);
-
-SISO1 = G(1,1);
-SISO2 = G(2,2);
-
-% showing why G12 and G21 are negligeable (order is too small)
-G12 = G(1,2);
-G21 = G(2,1);
-bode(G11, G12, G21, G22)
-legend('G11','G12','G21','G22');
-
-% -------------------------- PID Controller -------------------------------
-
-% the details about pidtune function used below are at:
-% https://www.mathworks.com/help/control/ref/dynamicsystem.pidtune.html#d126e208832
-
-% Design PID for our first SISO system
-[C1, info1] = pidtune(SISO1, 'PID');
-
-% Design PID for our second SISO system
-[C2, info2] = pidtune(SISO2, 'PID');
-
-C1
-C2
-
+end
 
 
 
