@@ -1,6 +1,7 @@
 function [A_obs, B_obs, C_obs, D_obs] = OCF(A, B, C, D)
 % OCF - Computes the observed canonical form of a system
-% Inputs: A, B, C, D - State-space matrices
+% Inputs:
+% A, B, C, D - State-space matrices
 % Outputs: A_obs, B_obs, C_obs, D_obs - Observed canonical form matrices
 
     % Check observability
