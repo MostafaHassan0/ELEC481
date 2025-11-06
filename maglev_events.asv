@@ -1,0 +1,29 @@
+function [value, isterminal, direction] = maglev_events(~, x, u, params)
+
+
+y1 = x(1);          % meters
+y2 = x(3);          % meters
+u1 = u(1); 
+u2 = u(2); 
+
+
+% Convert to cm for gap model
+y1_cm = y1 * 100;
+y2_cm = y2 * 100;
+
+gap_cm = params.yc + y2_cm - y1_cm;
+
+min_gap_cm = params.min_gap;
+
+value = [
+    %y1;            % bottom hit → pos number : zero
+    y2;            % top hit → neg number : zero
+    gap_cm - min_gap_cm;    % collision →  pos number : zero
+    u1 - 32000 ;            %coil exceeds range →  neg number : zero
+    u1 + 
+    u2 - 32000 ;            %coil exceeds range →  neg number : zero 
+];
+
+isterminal = [1; 1; 1; 1];    % stop simulation
+direction   = [ 1; -1; 1; 1];  % detect crossing toward zero
+end

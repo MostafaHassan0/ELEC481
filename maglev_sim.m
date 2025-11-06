@@ -1,4 +1,4 @@
-function x_next = maglev_sim(Ts, x, u, params)
+function [x_next, sim_error]  = maglev_sim(Ts, x, u, params)
 
 %This simulation will use the more complicated differential equations for a
 %more realistic simulation
@@ -12,25 +12,54 @@ function x_next = maglev_sim(Ts, x, u, params)
 %x(3) = y2
 %x(4) = dy2
 
+sim_error = false; 
+params
+
 %x_next follows the same logic
 
-%arbitrarily 
+EVENT_MAP = {
+    'Pucks cross over / collide'
+    'Control effort u1 out of range (+- 32k)'
+    'Control effort u2 out of range (+- 32k)'
+};
 
 odefun = @(t, x) maglev_ode (t, x, u, params);
 
-opts = odeset('RelTol',1e-6, 'AbsTol',1e-9, 'MaxStep', Ts/4);
+eventfun = @(t, x) maglev_events(t, x, u, params);
 
-[~, x_sol] = ode45(odefun, [0 Ts], x, opts);
+opts = odeset('RelTol',1e-6, 'AbsTol',1e-9, 'MaxStep', Ts/4, 'Events', eventfun);
+
+[~, x_sol, ~, xe, ie] = ode45(odefun, [0 Ts], x, opts);
+
+
+%Error feedback 
+if ~isempty(ie)
+    fprintf('*** MAGLEV SIM TERMINATED: EVENTS ');
+    fprintf('Event failures:\n');
+    for k = 1:length(ie)
+        fprintf('  → Event %d: %s\n', ie(k), EVENT_MAP{ie(k)});
+    end
+ 
+    x_next = xe(1,:).';
+    sim_error = true; 
+    return;
+end
+
+% Below hardcodes a collision with the top or bottom, no springiness 
+%is implemented as this is not a collision simulation, if you are colliding
+%other than for initial conditions at rest, you have missed the point of
+%controls class
+
+if (x_sol(end, 1) <= 0)
+    x_sol(end, 1) = 0;
+    x_sol(end, 2)= 0;
+end
+
+if (x_sol(end, 3) >= 0)
+    x_sol(end, 3) = 0;
+    x_sol(end, 4)= 0;
+end
 
 x_next = x_sol(end, :).';  % final state approximations after Ts
 
 end
-
-
-%To fix, 
-%implement logic simulates top and bottom bonk 
-
-%implement minimum seperation between the pucks (look into it another day
-%and have them bonk and seperate if need be, not just the gap enforcement
-
-%your unit situation is fucked and you're an idiot
