@@ -1,9 +1,7 @@
 function [A_ctrl, B_ctrl, C_ctrl, D_ctrl] = CCF(A, B, C, D)
 % CCF - Computes the controllable canonical form of a system
-% Inputs:
-%   A, B, C, D - State-space matrices
-% Outputs:
-%   A_ctrl, B_ctrl, C_ctrl, D_ctrl - Controllable canonical form matrices
+% Inputs: A, B, C, D - State-space matrices
+% Outputs: A_ctrl, B_ctrl, C_ctrl, D_ctrl - Controllable canonical form matrices
 
     % Check controllability
     n = size(A, 1);
