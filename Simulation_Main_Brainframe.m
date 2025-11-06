@@ -28,12 +28,12 @@
 m = 0.12; %kg
 a = 1.65; %cm
 b = 6.2; %cm
-c = 18723 ; %N *cm^4
+c = 23213 ; %N *cm^4
 d = 4.23 ; %cm
 yc = 12;  % units cm 
 g = 9.81; %m/s^2
 n = 4; 
-drag = 2e-2; %drag coefficient, it cant oscillate forever that's silly
+drag = 3e-2; %drag coefficient was determined empirically
 min_gap = 0.25; %cm, break condition for simulation
 
 params = struct('m',m,'a',a,'b',b,'c',c,'d',d,'yc',yc,'g',g,'n',n,'drag',drag,'min_gap',min_gap);
@@ -59,30 +59,26 @@ y2_min = -(yc/100 - 0.07);
 Ts = 0.000884; 
 
 %The following defines length of simulation in seconds
-t_sim = 5; 
+t_sim = 20; 
 
 %linearization coordinates
 y10 = 0.9; 
 y20 = -0.9; 
 
 %Define puck 1 initial conditions here, do not put in a stupid acceleration
-y1_initial = y10/100; 
+y1_initial = y1_min; 
 dy1_initial = 0; 
 
 
 %Define puck 2 initial conditions here, do not put in a stupid acceleration
-y2_initial = y20/100; 
+y2_initial = y2_min; 
 dy2_initial = 0; 
 
 %-------------------------------------------------------------------------
 %           Controller Creation
 %------------------------------------------------------------------------
 
-[~, u10, u20, ~] = Create_System(params, y10, y20); 
-
-u1_init = u10; 
-
-u2_init = u20; 
+[sys, u10, u20, ~] = Create_System(params, y10, y20); 
 
 %-------------------------------------------------------------------------
 %       The Sim Loop 
@@ -136,7 +132,8 @@ for k = 1 : numel(t) - 1
 
     [x_next, sim_error]  = maglev_sim(Ts, x_current, u_current, params);
 
-    u_next = [u10; u20] ; 
+    % here a controller function would go to calculate u_next
+    u_next =  [0; 0];
 
     if(sim_error)
         break;
@@ -247,5 +244,4 @@ title('Upper Magnet Control Effort vs Velocity');
 legend('Position (cm)', 'Control Effort (counts)');
 
 
-%}
 
