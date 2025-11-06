@@ -1,0 +1,37 @@
+function [y1_out, y2_out, dy1_out, dy2_out] = maglev_sim(Ts, x, u, params)
+
+%This simulation will use the more complicated differential equations for a
+%more realistic simulation
+
+%This takes initial conditions and uses matlab numerical solvers to
+%approximate the resultant yi, and dy at the end of each sensor cycle
+%(at which point the controller would be updated with new values)
+
+%x(1) = y1
+%x(2) = y2
+%x(3) = dy1
+%x(4) = dy2
+
+m = params.m; 
+a = params.a; 
+b = params.b; 
+c = params.c; 
+d = params.d; 
+yc = params.yc;  
+g = params.g; 
+n = params.n; 
+drag = params.drag; 
+
+Fu11 = @(i1, y1) i1 ./ (a .* (y1 + b) .^n ); 
+Fu12 = @(i1, y2) i1./ (a.* (yc + y2 + b) .^n ); 
+Fu21 = @(i2, y1) i2 ./ (a .* (yc - y1 + b) .^n ); 
+Fu22 = @(i2, y2) i2 ./ (a .* (-y2 + b) .^ n ); 
+Fm12 = @(y1, y2) c ./(yc + y2 - y1 + d).^n; 
+
+%arbitrarily 
+
+odefun = @(t, x) ma
+
+
+
+end
