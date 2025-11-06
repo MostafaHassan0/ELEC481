@@ -13,7 +13,6 @@ function [x_next, sim_error]  = maglev_sim(Ts, x, u, params)
 %x(4) = dy2
 
 sim_error = false; 
-params
 
 %x_next follows the same logic
 

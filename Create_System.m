@@ -1,10 +1,21 @@
-function [sys, u10, u20, pass] = Create_System(a, b, c, d, m, g, yc, y10, y20)
+function [sys, u10, u20, pass] = Create_System(params, y10, y20)
 %The following system returns system value
 
 pass = false; 
 u10 = 0; 
 u20 = 0; 
 sys = []; 
+
+m = params.m; %kg
+a = params.a; %counts / N*cm^4 -> cm^4 terms cancel with cm .^n within force cals
+b = params.b;  %cm 
+c = params.c; %N *cm^4
+d = params.d; %cm 
+yc = params.yc;  %cm 
+g = params.g; %m/s^2
+n = params.n; %exponent unitless
+drag = params.drag; % N·s/m  (viscous)
+
 
 %look for singularities
 

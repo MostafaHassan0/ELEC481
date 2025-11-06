@@ -24,6 +24,7 @@
 %     System Params - You shouldn't change these
 %---------------------------------------------------------------------
 
+
 m = 0.12; %kg
 a = 1.65; %cm
 b = 6.2; %cm
@@ -53,21 +54,35 @@ y2_min = -(yc/100 - 0.07);
 %alone, if you run this with a controller the computation increases
 %immensely. 
 
+
 %minimum sampling time is 0.000884s, please respect this; 
 Ts = 0.000884; 
 
 %The following defines length of simulation in seconds
-t_sim = 20; 
+t_sim = 5; 
+
+%linearization coordinates
+y10 = 0.9; 
+y20 = -0.9; 
 
 %Define puck 1 initial conditions here, do not put in a stupid acceleration
-y1_initial = y1_min; 
+y1_initial = y10/100; 
 dy1_initial = 0; 
 
 
 %Define puck 2 initial conditions here, do not put in a stupid acceleration
-y2_initial = -0.10; 
+y2_initial = y20/100; 
 dy2_initial = 0; 
 
+%-------------------------------------------------------------------------
+%           Controller Creation
+%------------------------------------------------------------------------
+
+[~, u10, u20, ~] = Create_System(params, y10, y20); 
+
+u1_init = u10; 
+
+u2_init = u20; 
 
 %-------------------------------------------------------------------------
 %       The Sim Loop 
@@ -96,7 +111,7 @@ t = 0:Ts: t_sim;
 
 x_init = [y1_initial ; dy1_initial ; y2_initial ; dy2_initial]; 
 
-u_init = [0; 0]; 
+u_init = [u1_init; u2_init]; 
 
 %populating data matrix
 
@@ -121,11 +136,15 @@ for k = 1 : numel(t) - 1
 
     [x_next, sim_error]  = maglev_sim(Ts, x_current, u_current, params);
 
+    u_next = [u10; u20] ; 
+
     if(sim_error)
         break;
     end
 
     Data_matrix(2:5, k + 1) = x_next;
+    
+    Data_matrix(6:7, k + 1) = u_next; 
 
 end
 
@@ -161,43 +180,72 @@ x3 = (x(3, :)*100 + yc);
 % u1, y1
 
 figure;
-plot(t, u(1, :), 'r-', ...
-     t, x(1, :)*100, 'g-');
-xlabel('Time (s)');
+
+yyaxis left
+plot(t, x(1, :)*100, 'g-', 'LineWidth', 1.2); 
 ylabel('Position (cm)');
-legend('Control Effort u1', 'Position Lower Magnet');
-title(sprintf('Lower Magnet Control Effort vs Position Lower Magnet'));
 grid on;
+
+yyaxis right
+plot(t, u(1,:), 'r-', 'LineWidth', 1.2); 
+ylabel('Control Effort (DAC counts)');
+
+xlabel('Time (s)');
+title('Lower Magnet Position and Control Effort');
+legend('Position (cm)', 'Control Effort (counts)');
+
 %}
 
 %u2, y2
 figure;
-plot(t, u(2, :), 'r-', ...
-     t, x3, 'g-');
-xlabel('Time (s)');
+
+yyaxis left
+plot(t, x3, 'g-', 'LineWidth', 1.2); % upper magnet position (cm)
 ylabel('Position (cm)');
-legend('Control Effort u2', 'Position Upper Magnet');
-title(sprintf('Lower Magnet Control Effort vs Position Upper Magnet'));
 grid on;
+
+yyaxis right
+plot(t, u(2,:), 'r-', 'LineWidth', 1.2); % control effort (counts)
+ylabel('Control Effort (DAC counts)');
+
+xlabel('Time (s)');
+title('Upper Magnet Position and Control Effort');
+legend('Position (cm)', 'Control Effort (counts)');
 
 %u1, dy1
 
 figure;
-plot(t, u(1, :), 'r-', ...
-     t, x(2, :), 'g-');
-xlabel('Time (s)');
+
+yyaxis left
+plot(t, x(2, :), 'g-', 'LineWidth', 1.2); % upper magnet position (cm)
 ylabel('Velocity (m/s)');
-legend('Control Effort u1', 'Velocity Lower Magnet');
-title(sprintf('Lower Magnet Control Effort vs Velocity Lower Magnet'));
 grid on;
 
-%u2, dy2
-figure;
-plot(t, u(2, :), 'r-', ...
-     t, x(4, :), 'g-');
+yyaxis right
+plot(t, u(1,:), 'r-', 'LineWidth', 1.2); % control effort (counts)
+ylabel('Control Effort (DAC counts)');
+
 xlabel('Time (s)');
-ylabel('Position (cm)');
-legend('Control Effort u2', 'Velocity Upper Magnet');
-title(sprintf('Lower Magnet Control Effort vs Velocity Upper Magnet'));
+title('Lower Magnet Control Effort vs Velocity');
+legend('Position (cm)', 'Control Effort (counts)');
+
+%u2, dy2
+
+figure;
+
+yyaxis left
+plot(t, x(4, :), 'g-', 'LineWidth', 1.2); % upper magnet position (cm)
+ylabel('Velocity (m/s)');
 grid on;
+
+yyaxis right
+plot(t, u(2,:), 'r-', 'LineWidth', 1.2); % control effort (counts)
+ylabel('Control Effort (DAC counts)');
+
+xlabel('Time (s)');
+title('Upper Magnet Control Effort vs Velocity');
+legend('Position (cm)', 'Control Effort (counts)');
+
+
+%}
 
