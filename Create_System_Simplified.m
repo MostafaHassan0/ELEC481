@@ -1,4 +1,4 @@
-function [sys, u10, u20, pass] = Create_System(params, y10, y20)
+function [sys, u10, u20, pass] = Create_System_Simplified(params, y10, y20)
 %The following system returns system value
 
 pass = false; 

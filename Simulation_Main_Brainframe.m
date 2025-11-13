@@ -59,26 +59,31 @@ y2_min = -(yc/100 - 0.07);
 Ts = 0.000884; 
 
 %The following defines length of simulation in seconds
-t_sim = 20; 
+t_sim = 5; 
 
-%linearization coordinates
-y10 = 0.9; 
-y20 = -0.9; 
+%linearization coordinates in centimeters
+y10 = 1; 
+y20 = -1; 
+
+%THE FOLLOWING MUST BE DEFINED IN METERS
 
 %Define puck 1 initial conditions here, do not put in a stupid acceleration
-y1_initial = y1_min; 
+y1_initial = y10/100; 
 dy1_initial = 0; 
 
 
 %Define puck 2 initial conditions here, do not put in a stupid acceleration
-y2_initial = y2_min; 
+y2_initial = y20/100; 
 dy2_initial = 0; 
 
 %-------------------------------------------------------------------------
 %           Controller Creation
 %------------------------------------------------------------------------
 
-[sys, u10, u20, ~] = Create_System(params, y10, y20); 
+[sys, u10, u20, ~] = Create_System_Complete(params, y10, y20); 
+
+u1_init = u10; 
+u2_init = u20; 
 
 %-------------------------------------------------------------------------
 %       The Sim Loop 
@@ -133,7 +138,7 @@ for k = 1 : numel(t) - 1
     [x_next, sim_error]  = maglev_sim(Ts, x_current, u_current, params);
 
     % here a controller function would go to calculate u_next
-    u_next =  [0; 0];
+    u_next =  [u10; u20];
 
     if(sim_error)
         break;
@@ -181,6 +186,7 @@ figure;
 yyaxis left
 plot(t, x(1, :)*100, 'g-', 'LineWidth', 1.2); 
 ylabel('Position (cm)');
+ylim([0 12]); 
 grid on;
 
 yyaxis right
@@ -199,6 +205,7 @@ figure;
 yyaxis left
 plot(t, x3, 'g-', 'LineWidth', 1.2); % upper magnet position (cm)
 ylabel('Position (cm)');
+ylim([0 12]); 
 grid on;
 
 yyaxis right
@@ -210,7 +217,6 @@ title('Upper Magnet Position and Control Effort');
 legend('Position (cm)', 'Control Effort (counts)');
 
 %u1, dy1
-
 figure;
 
 yyaxis left
@@ -242,6 +248,4 @@ ylabel('Control Effort (DAC counts)');
 xlabel('Time (s)');
 title('Upper Magnet Control Effort vs Velocity');
 legend('Position (cm)', 'Control Effort (counts)');
-
-
 

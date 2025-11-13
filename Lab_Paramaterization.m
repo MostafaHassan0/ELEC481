@@ -1,14 +1,24 @@
-function [sys_final, y10, y20] = Lab_Paramaterization()
+function [sys_final, y10, y20, params] = Lab_Paramaterization(version)
+
+%This code is for evaluating areas of control of differential equations
+
+%version = 1 means simplified differential equations
+%version = 2 means complete dynamics 
+
+if(version ~= 1 && version ~= 2)
+    disp("Please choose which dynamics to evaluate, 1 = simplified, 2 = complete")
+    return; 
+end
 
 m = 0.12; %kg
 a = 1.65; %cm
 b = 6.2; %cm
-c = 18723 ; %N *cm^4
+c = 23213 ; %N *cm^4
 d = 4.23 ; %cm
 yc = 12;  % units cm 
 g = 9.81; %m/s^2
 n = 4; 
-drag = 2e-2; %drag coefficient, it cant oscillate forever that's silly
+drag = 3e-2; %drag coefficient was determined empirically
 min_gap = 0.25; %cm, break condition for simulation
 
 params = struct('m',m,'a',a,'b',b,'c',c,'d',d,'yc',yc,'g',g,'n',n,'drag',drag,'min_gap',min_gap);
@@ -29,17 +39,18 @@ row = 2;
 % situation where to get it to the linearization point is spicy, I have a
 % trick. 
 
-
-
-
 for i_ = 1:length(y10_range)
     for j_ = 1:length(y20_range)
         if (i_ == j_)
-        [sys_eval, u10_eval, u20_eval, pass] = Create_System(params, y10_range(i_), y20_range(j_)); 
+            if (version == 1)
+                [sys_eval, u10_eval, u20_eval, pass] = Create_System_Simplified(params, y10_range(i_), y20_range(j_)); 
+            else
+                [sys_eval, u10_eval, u20_eval, pass] = Create_System_Complete(params, y10_range(i_), y20_range(j_));
+            end
         else 
             pass = false; 
         end
-        if (u10_eval < 10000 && u20_eval < 10000 && pass)
+        if (u10_eval < 20000 && u20_eval < 20000 && pass)
             [result, cond_obsv, cond_ctl, num12, num21] = Evaluate_System(sys_eval);
             if (result)
                 [tau_dom, dom_eig] = Stability_Eval(sys_eval.A);
@@ -58,7 +69,7 @@ writecell(Results, 'maglev_results.xlsx');
 
 disp("At y10 = 0.9cm, and y20 = -0.9cm, the following is a template A matrix "); 
 
-[sys_final, ~, ~, ~] = Create_System(params, 0.9, -0.9); 
+[sys_final, ~, ~, ~] = Create_System_Sim(params, 0.9, -0.9); 
 
 end
 
