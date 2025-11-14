@@ -65,11 +65,12 @@ Results = Results(1:row-1, :);
 
 writecell(Results, 'maglev_results.xlsx');
 
-%this is hardcoded for now, but it will display the a
+%this is hardcoded for now, and is of little value, be warned of the return
+%type
 
 disp("At y10 = 0.9cm, and y20 = -0.9cm, the following is a template A matrix "); 
 
-[sys_final, ~, ~, ~] = Create_System_Sim(params, 0.9, -0.9); 
+[sys_final, ~, ~, ~] = Create_System_Sim(params, 2, -2); 
 
 end
 

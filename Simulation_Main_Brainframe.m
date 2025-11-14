@@ -62,28 +62,33 @@ Ts = 0.000884;
 t_sim = 5; 
 
 %linearization coordinates in centimeters
-y10 = 1; 
-y20 = -1; 
+y10 = 2; 
+y20 = -2; 
 
 %THE FOLLOWING MUST BE DEFINED IN METERS
 
+%y20 is in negative meters, with the top at 0, bottom at -0.12
+
 %Define puck 1 initial conditions here, do not put in a stupid acceleration
-y1_initial = y10/100; 
+y1_initial = 0; 
 dy1_initial = 0; 
 
 
 %Define puck 2 initial conditions here, do not put in a stupid acceleration
-y2_initial = y20/100; 
+y2_initial = -0.1; 
 dy2_initial = 0; 
 
 %-------------------------------------------------------------------------
 %           Controller Creation
 %------------------------------------------------------------------------
 
-[sys, u10, u20, ~] = Create_System_Complete(params, y10, y20); 
+% Choose complete or simplified create system depending on what you use to
+% create your controller 
 
-u1_init = u10; 
-u2_init = u20; 
+[sys, u10, u20, ~] = Create_System_Simplified(params, y10, y20); 
+
+u1_init = 0; 
+u2_init = 2; 
 
 %-------------------------------------------------------------------------
 %       The Sim Loop 
@@ -129,6 +134,7 @@ Data_matrix(6:end, 1) = u_init;  % rows 6:7 hold control effort u1, u2 respectiv
 
 % FETCH DEVEL BRANCH -> CREATE YOUR OWN UNIQUE BRANCH FOR YOUR OWN TESTING
 
+
 for k = 1 : numel(t) - 1
 
     x_current = Data_matrix(2:5, k); 
@@ -138,8 +144,7 @@ for k = 1 : numel(t) - 1
     [x_next, sim_error]  = maglev_sim(Ts, x_current, u_current, params);
 
     % here a controller function would go to calculate u_next
-    u_next =  [u10; u20];
-
+    u_next =  [0;0] ; 
     if(sim_error)
         break;
     end
@@ -154,7 +159,6 @@ end
 %-------------------------------------------------------------------------
 %                   Plotting
 %-------------------------------------------------------------------------
-
 
 %Some simple plots are here for your use, feel free to add what you need 
 
