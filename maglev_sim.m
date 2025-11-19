@@ -16,31 +16,49 @@ sim_error = false;
 
 %x_next follows the same logic
 
-EVENT_MAP = {
-    'Pucks cross over / collide'
-    'Control effort u1 out of range (+- 32k)'
-    'Control effort u2 out of range (+- 32k)'
-};
-
 odefun = @(t, x) maglev_ode (t, x, u, params);
 
-eventfun = @(t, x) maglev_events(t, x, u, params);
+eventfun = @(t, x) maglev_events(t, x, params);
 
 opts = odeset('RelTol',1e-6, 'AbsTol',1e-9, 'MaxStep', Ts/4, 'Events', eventfun);
 
 [~, x_sol, ~, xe, ie] = ode45(odefun, [0 Ts], x, opts);
 
+e = params.e; 
+
 
 %Error feedback 
 if ~isempty(ie)
-    fprintf('*** MAGLEV SIM TERMINATED: EVENTS ');
-    fprintf('Event failures:\n');
-    for k = 1:length(ie)
-        fprintf('  → Event %d: %s\n', ie(k), EVENT_MAP{ie(k)});
+
+     disp("EVENTS FIRED:")
+    disp(ie)
+
+      x_event = xe(1,:).';
+
+    % EVENT 1 — puck–puck collision (fatal)
+    if any(ie == 1)
+        sim_error = true;
+        x_next = x_event;
+        return;
     end
- 
-    x_next = xe(1,:).';
-    sim_error = true; 
+
+    % EVENT 2 — lower puck hits y1 = 0
+    if any(ie == 2)
+        x_event(1) = 0;
+        if x_event(2) < 0
+            x_event(2) = -e * x_event(2);
+        end
+    end
+
+    % EVENT 3 — upper puck hits y2 = 0
+    if any(ie == 3)
+        x_event(3) = 0;
+        if x_event(4) > 0
+            x_event(4) = -e * x_event(4);
+        end
+    end
+
+    x_next = x_event;
     return;
 end
 
@@ -48,16 +66,6 @@ end
 %is implemented as this is not a collision simulation, if you are colliding
 %other than for initial conditions at rest, you have missed the point of
 %controls class
-
-if (x_sol(end, 1) <= 0)
-    x_sol(end, 1) = 0;
-    x_sol(end, 2)= 0;
-end
-
-if (x_sol(end, 3) >= 0)
-    x_sol(end, 3) = 0;
-    x_sol(end, 4)= 0;
-end
 
 x_next = x_sol(end, :).';  % final state approximations after Ts
 

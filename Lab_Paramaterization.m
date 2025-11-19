@@ -11,8 +11,8 @@ if(version ~= 1 && version ~= 2)
 end
 
 m = 0.12; %kg
-a = 1.65; %cm
-b = 6.2; %cm
+a = 33.4580; %cm
+b = 0.6215; %cm
 c = 23213 ; %N *cm^4
 d = 4.23 ; %cm
 yc = 12;  % units cm 
@@ -70,7 +70,7 @@ writecell(Results, 'maglev_results.xlsx');
 
 disp("At y10 = 0.9cm, and y20 = -0.9cm, the following is a template A matrix "); 
 
-[sys_final, ~, ~, ~] = Create_System_Sim(params, 2, -2); 
+[sys_final, ~, ~, ~] = Create_System_Complete(params, 2, -2); 
 
 end
 

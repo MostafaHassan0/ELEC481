@@ -1,4 +1,4 @@
-function [sys, u10, u20, pass] = Create_System_Simplified(params, y10, y20)
+function [sys, u10, u20, x10, x20, pass] = Create_System_Simplified(params, y10, y20)
 %The following system returns system value
 
 pass = false; 
@@ -29,7 +29,11 @@ end
 
 u10 = ((c./(yc + y20 - y10 +d).^4)+m.*g).*a.*(y10 + b).^4; 
 
-u20 =  ((-c./(yc + y20 - y10 +d).^4)+ m.*g).* a.*(-y20 + b).^4; 
+u20 =  ((-c./(yc + y20 - y10 +d).^4)+ m.*g).* a.*(-y20 + b).^4;
+
+x10 = y10 *m; 
+
+x20 = y20 *m; 
 
 k12 = 4.*c ./ (yc + y20 - y10 + d).^5; 
 
@@ -59,6 +63,8 @@ sys = ss(A, B, C, D);
 
 if all(isfinite([u10,u20])) && all(isfinite(A(:))) && all(isfinite(B(:)))
     pass = true;
+else
+    disp('Creating system and linearization points failed')
 end
 
 end

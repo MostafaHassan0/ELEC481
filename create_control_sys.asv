@@ -1,0 +1,196 @@
+function [G, K]  = create_control_sys(sys, Per_OS, tp, ts, ratio_K_G, dom_sub_ratio) % %Overshoot, rise time, settling time, 
+
+%The assumption is that controllability and observability have already been
+%evaluated
+
+%A 2ND order pole approximation will  be used as the the goal of the
+%control system is to make sure R(p1), R(p2) >> R(p3), R(p4) 
+%where p1, and p2 are the dominant poles and p1 -> p4 are poles after
+%shifted
+
+if(Per_OS >1)
+    disp("Per_OS must be between 0 -> 1")
+    return; 
+end
+
+delta_range = 0.75:0.1:1; 
+
+%Define Constants and System params
+
+damping_ratio = - log(Per_OS)/(sqrt(pi^2+(log(Per_OS))^2)); 
+
+theta = acos(damping_ratio); 
+
+s_Im_boundary = pi/tp; 
+
+s_Re_boundary = 4/ts; 
+
+s_Re_eval = s_Im_boundary / tan(theta); 
+
+if (abs(s_Re_eval) >= abs(s_Re_boundary ))
+    S_Re = -s_Re_eval ; 
+    for delta = delta_range
+    wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
+    wd = wn * sqrt(1 - delta^2);         % imaginary part
+    
+        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
+            if wn < best_wn                % keep smallest wn
+                best_wn = wn;
+                best_delta = delta;
+            end
+        end
+    end
+
+    if isnan(best_delta)
+    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
+    end
+
+else
+    S_Re = -s_Re_boundary; 
+    for delta = delta_range
+        wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
+        wd = wn * sqrt(1 - delta^2);         % imaginary part
+    
+        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
+            if wn < best_wn                % keep smallest wn
+                best_wn = wn;
+                best_delta = delta;
+            end
+        end
+    end
+
+    if isnan(best_delta)
+    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
+    end
+
+end
+
+S_Im = best_wn * sqrt(1 - best_delta^2);
+
+%S_Re = -max(abs(s_Re_eval1), abs(s_Re_boundary ));
+
+poles_controller = [S_Re + 1i*S_Im , S_Re - 1i*S_Im, dom_sub_ratio*S_Re, dom_sub_ratio*S_Re ]; 
+
+K = place(sys.A, sys.B, poles_controller); 
+
+ts_observer = ts/ratio_K_G; 
+tp_observer= tp/ratio_K_G; 
+
+s_Im_boundary = pi/tp_observer; 
+
+s_Re_boundary = 4/ts_observer ; 
+
+s_Re_eval = s_Im_boundary / tan(theta); 
+
+if (abs(s_Re_eval) >= abs(s_Re_boundary ))
+    S_Re = -s_Re_eval ; 
+    for delta = delta_range
+    wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
+    wd = wn * sqrt(1 - delta^2);         % imaginary part
+    
+        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
+            if wn < best_wn                % keep smallest wn
+                best_wn = wn;
+                best_delta = delta;
+            end
+        end
+    end
+
+    if isnan(best_delta)
+    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
+    end
+
+else
+    S_Re = -s_Re_boundary; 
+    for delta = delta_range
+        wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
+        wd = wn * sqrt(1 - delta^2);         % imaginary part
+    
+        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
+            if wn < best_wn                % keep smallest wn
+                best_wn = wn;
+                best_delta = delta;
+            end
+        end
+    end
+
+    if isnan(best_delta)
+    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
+    end
+
+end
+
+S_Im = best_wn * sqrt(1 - best_delta^2);
+
+poles_observer = [S_Re + 1i*S_Im , S_Re - 1i*S_Im, dom_sub_ratio*S_Re, dom_sub_ratio*S_Re ]; 
+
+G = place(sys.A', sys.C', poles_observer).';
+
+
+
+
+%{
+
+while(~pass && delta_eval >= 0.5)
+
+    wn = (4*safety_factor)/(delta_eval*ts);
+    s_real_eval = -wn*delta_eval;
+    
+    s_imm_eval = wn*sqrt(1-delta_eval^2); 
+    
+         if(s_imm_eval < s_Im_boundary)
+        
+             theta_eval = acos(abs(s_real_eval)/(sqrt(s_real_eval^2 + s_imm_eval^2))); 
+             if ( theta_eval <= theta_limit)
+    
+                 poles_controller = [s_real_eval + 1i*s_imm_eval, s_real_eval - 1i*s_imm_eval, 3*s_real_eval, 3*s_real_eval ]; 
+                    
+                 K = place(sys.A, sys.B, poles_controller); 
+                 pass = true; 
+             end
+         end
+    
+     delta_eval = delta_eval - 0.01; 
+end
+
+if (~pass)
+    disp("No valid solution K"); 
+    return; 
+end
+
+ts_observer = ts/3; 
+tp_observer= tp/3; 
+
+s_Im_boundary = (pi*safety_factor)/tp_observer; 
+pass = false; 
+delta_eval = 1; 
+
+while(~pass && delta_eval >= 0.5)
+
+    wn = (4*safety_factor)/(delta_eval*ts_observer);
+    s_real_eval = -wn*delta_eval;
+    
+    s_imm_eval = wn*sqrt(1-delta_eval^2); 
+    
+         if(s_imm_eval < s_Im_boundary)
+        
+             theta_eval = acos(abs(s_real_eval)/(sqrt(s_real_eval^2 + s_imm_eval^2))); 
+             if ( theta_eval <= theta_limit)
+    
+                 poles_observer = [s_real_eval + 1i*s_imm_eval, s_real_eval - 1i*s_imm_eval, 3*s_real_eval, 3*s_real_eval ]; 
+                    
+                 G = place(sys.A', sys.C', poles_observer)'; 
+                 pass = true; 
+             end
+        end
+    
+     delta_eval = delta_eval - 0.01; 
+end
+
+if (~pass)
+    disp("No valid solution G"); 
+    return; 
+end
+
+%}
+end

@@ -23,9 +23,9 @@ u2 = u(2);
 y1_cm = x(1) * 100; 
 y2_cm = x(3) * 100; 
 
-y1 = max(y1_cm, 0);
+y1 = y1_cm;
 dy1 = x(2); 
-y2 = min(y2_cm, 0); 
+y2 = y2_cm; 
 dy2 = x(4); 
 
 Fu11 = u1 ./ (a .* (y1 + b) .^n );                  %N

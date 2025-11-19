@@ -1,4 +1,4 @@
-function [sys, u10, u20, pass] = Create_System_Complete(params, y10, y20)
+function [sys, u10, u20, x10, x20, pass] = Create_System_Complete(params, y10, y20)
 %The following system returns system value
 
 pass = false; 
@@ -34,6 +34,10 @@ u10 = ( k^4 * a * l^4* ( c * ( f^4 - h^4 ) + e^4 * m * g * ( h^4 + f^4 ) ) ) / .
 
 u20 = ( h^4 * a* f^4 * ( c * ( l^4 - k^4 ) + e^4 * m * g * ( l^4 + k^4 ) ) ) / ...
                      (e^4 * (k^4 * f^4 - l^4 * h^4)); 
+
+x10 = y10 *m; 
+
+x20 = y20 *m; 
 
 km12 = 4 * c / e^5 ; 
 
@@ -71,6 +75,8 @@ sys = ss(A, B, C, D);
 
 if all(isfinite([u10,u20])) && all(isfinite(A(:))) && all(isfinite(B(:)))
     pass = true;
+else
+    disp('Creating system and linearization points failed')
 end
 
 end
