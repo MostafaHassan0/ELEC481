@@ -22,44 +22,53 @@ eventfun = @(t, x) maglev_events(t, x, params);
 
 opts = odeset('RelTol',1e-6, 'AbsTol',1e-9, 'MaxStep', Ts/4, 'Events', eventfun);
 
-[~, x_sol, ~, xe, ie] = ode45(odefun, [0 Ts], x, opts);
+[~, x_sol, ~, ~, ~] = ode45(odefun , [0 Ts], x, opts);
+
+e = params.e; 
+
+y1_cm = y1 * 100;
+y2_cm = y2 * 100;
+
+gap_cm = params.yc + y2_cm - y1_cm;
+
+min_gap_cm = params.min_gap;
+
 
 
 %Error feedback 
-if ~isempty(ie)
+%if ~isempty(ie)
 
-     disp("EVENTS FIRED:")
-    disp(ie)
+      %x_event = xe(1,:).';
 
-    x_event = xe(1,:).';   % exact collision state from ODE45
-    e = params.e;
+    % EVENT 1 — puck–puck collision (fatal)
+    if (gap_cm - min_gap_cm)<=0
+        disp('puck collision');
+        sim_error = true;
+        x_next = x_sol(:, end).';
+        return;
+    end
 
     % EVENT 2 — lower puck hits y1 = 0
     if any(ie == 2)
-        x_event(1) = 0;          % clamp position
-        if x_event(2) < 0        % only bounce if moving downward
+        disp('lower bounce');
+         = 0;
+        if x_event(2) < 0
             x_event(2) = -e * x_event(2);
         end
     end
 
     % EVENT 3 — upper puck hits y2 = 0
     if any(ie == 3)
-        x_event(3) = 0;          % clamp position
-        if x_event(4) > 0        % only bounce if moving upward
+        disp('event3');
+        x_event(3) = 0;
+        if x_event(4) > 0
             x_event(4) = -e * x_event(4);
         end
     end
 
-    % EVENT 1 — pucks collide → fatal
-    if any(ie == 1)
-        sim_error = true;
-        x_next = x_event;
-        return;
-    end
-
-    x_next = x_event;
-    return;
-end
+    %x_next = x_event;
+    %return;
+%end
 
 % Below hardcodes a collision with the top or bottom, no springiness 
 %is implemented as this is not a collision simulation, if you are colliding

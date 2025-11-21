@@ -1,196 +1,221 @@
-function [G, K]  = create_control_sys(sys, Per_OS, tp, ts, ratio_K_G, dom_sub_ratio) % %Overshoot, rise time, settling time, 
+function [G, K, poles_controller, poles_observer ]  = create_control_sys(sys, params_cs) % %Overshoot, rise time, settling time, 
 
 %The assumption is that controllability and observability have already been
 %evaluated
+
+Per_OS = params_cs.Per_OS; 
+tp =params_cs.tp;
+ts = params_cs.ts;
+ratio_K_G = params_cs.ratio_K_G;
+dom_sub_ratio = params_cs.dom_sub_ratio;
+%zeta_min_ratio = params_cs.zeta_min_ratio;
+
+safety_factor = params_cs.safety_factor; 
+
+%-----------------------------------------------------------------------
+%       Notes to improve
+%-------------------------------------------------------------------
+%
 
 %A 2ND order pole approximation will  be used as the the goal of the
 %control system is to make sure R(p1), R(p2) >> R(p3), R(p4) 
 %where p1, and p2 are the dominant poles and p1 -> p4 are poles after
 %shifted
-
 if(Per_OS >1)
     disp("Per_OS must be between 0 -> 1")
     return; 
 end
 
-delta_range = 0.75:0.1:1; 
+disp("controller");
+%best_re = inf;
+%best_delta = NaN;
+%best_im = NaN;
+%dx = 0.25; 
 
 %Define Constants and System params
 
-damping_ratio = - log(Per_OS)/(sqrt(pi^2+(log(Per_OS))^2)); 
+damping_ratio_max = - log(Per_OS)/(sqrt(pi^2+(log(Per_OS))^2; 
 
-theta = acos(damping_ratio); 
+theta = acos(damping_ratio_max);
 
-s_Im_boundary = pi/tp; 
+%damping_ratio_min = zeta_min_ratio* damping_ratio_max_max;
 
-s_Re_boundary = 4/ts; 
 
-s_Re_eval = s_Im_boundary / tan(theta); 
+%Controller 
 
-if (abs(s_Re_eval) >= abs(s_Re_boundary ))
-    S_Re = -s_Re_eval ; 
-    for delta = delta_range
-    wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
-    wd = wn * sqrt(1 - delta^2);         % imaginary part
-    
-        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
-            if wn < best_wn                % keep smallest wn
-                best_wn = wn;
-                best_delta = delta;
+
+%damping_range = damping_ratio_min:0.01:damping_ratio_max;
+
+s_Im_boundary_ctl = pi/(tp*safety_factor);
+
+s_Re_boundary_ctl = 4/(ts*safety_factor);
+
+x_intersection_ctl = s_Im_boundary_ctl / tan(theta) ;  % x where theta meets imaginary boundary 
+
+if abs(s_Re_boundary_ctl) <= abs(x_intersection_ctl)
+    % -------- Case A: Ts line right of intersection -> wedge is active --------
+    best_im = s_Im_boundary_ctl ;
+    best_re = -x_intersection_ctl;
+
+    %{
+    x_min = s_Re_boundary;
+    x_max = x_intersection_ctl;
+ 
+    for x = x_min:dx:x_max
+        S_Re = -x ;  % actual negative real part
+        S_Im_limit = x * tan(theta);
+
+        for delta = damping_range
+            wn = x / delta;
+            wd = wn * sqrt(1 - delta^2) ; % imag part
+
+            % wedge (overshoot) is the active limit here
+            if wd <= S_Im_limit
+                % choose pole closest to imag axis (smallest |Re|)
+                if abs(x) <= abs(best_re)
+                    best_re    = S_Re
+                    best_delta = delta
+                    best_im    = wd
+                end
             end
         end
     end
-
-    if isnan(best_delta)
-    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
-    end
-
+    %}
+    
 else
-    S_Re = -s_Re_boundary; 
-    for delta = delta_range
-        wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
-        wd = wn * sqrt(1 - delta^2);         % imaginary part
+    % -------- Case B: Ts line left of intersection -> tp is active --------
+
+    best_im = s_Im_boundary_ctl ;
+    best_re = -s_Re_boundary_ctl; 
     
-        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
-            if wn < best_wn                % keep smallest wn
-                best_wn = wn;
-                best_delta = delta;
+    %{
+    x_min = x_intersection_ctl;
+
+    x_max = x_intersection_ctl+10/dx; 
+
+    
+    for x = x_min:dx:x_max
+        S_Re = -x;
+
+        for delta = damping_range
+            wn = x / delta;
+            wd = wn * sqrt(1 - delta^2);
+
+            % tp (horizontal) is the active limit here
+            if wd <= s_Im_boundary_ctl
+                if abs(x) <= abs(best_re)
+                    best_re    = S_Re;
+                    best_delta = delta;
+                    best_im    = wd;
+                end
             end
         end
     end
-
-    if isnan(best_delta)
-    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
-    end
-
+    %}
 end
 
-S_Im = best_wn * sqrt(1 - best_delta^2);
+
+%disp(best_delta)
+
+    if isnan(best_delta)
+    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary controller.");
+    end
 
 %S_Re = -max(abs(s_Re_eval1), abs(s_Re_boundary ));
 
-poles_controller = [S_Re + 1i*S_Im , S_Re - 1i*S_Im, dom_sub_ratio*S_Re, dom_sub_ratio*S_Re ]; 
+poles_controller = [best_re + 1i*best_im  , best_re - 1i*best_im , dom_sub_ratio*best_re, dom_sub_ratio*best_re ]; 
 
 K = place(sys.A, sys.B, poles_controller); 
 
 ts_observer = ts/ratio_K_G; 
 tp_observer= tp/ratio_K_G; 
 
-s_Im_boundary = pi/tp_observer; 
+%best_delta = NaN;
 
-s_Re_boundary = 4/ts_observer ; 
+%best_re = inf;
 
-s_Re_eval = s_Im_boundary / tan(theta); 
+%best_im = NaN;
 
-if (abs(s_Re_eval) >= abs(s_Re_boundary ))
-    S_Re = -s_Re_eval ; 
-    for delta = delta_range
-    wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
-    wd = wn * sqrt(1 - delta^2);         % imaginary part
+
+%Observer
+
+s_Im_boundary_obs = pi/tp_observer;
+
+s_Re_boundary_obs = 4/ts_observer ;
+
+x_intersection_obs = s_Im_boundary_obs / tan(theta) ;
+
+if abs(s_Im_boundary_obs) <= abs(x_intersection_obs)
+    % -------- Case A: Ts line right of intersection -> wedge active --------
+
+    best_im = s_Im_boundary_obs ;
+    best_re = -x_intersection_obs;
+
+
+    %{
+    x_min = s_Re_boundary_obs;
+    x_max = x_intersection_obs;
     
-        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
-            if wn < best_wn                % keep smallest wn
-                best_wn = wn;
-                best_delta = delta;
+    for x = x_min:dx:x_max
+        S_Re = -x;   % actual negative real part
+
+        for delta = damping_range
+            wn = x / delta;
+            wd = wn * sqrt(1 - delta^2);  % imag part
+
+            % wedge (overshoot) is the active limit here
+            if wd <= x * tan(theta)
+                % choose pole closest to imag axis (smallest |Re|)
+                if abs(x) <= abs(best_re)
+                    best_re    = S_Re
+                    best_delta = delta
+                    best_im    = wd
+                end
             end
         end
     end
-
-    if isnan(best_delta)
-    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
-    end
-
+    %}
+    
 else
-    S_Re = -s_Re_boundary; 
-    for delta = delta_range
-        wn = abs(S_Re)/ delta;                      % from real part: δ wn = x
-        wd = wn * sqrt(1 - delta^2);         % imaginary part
+    % -------- Case B: Ts line left of intersection -> tp is active --------
+
+    sbest_im = s_Im_boundary_obs ;
+    best_re = -s_Re_boundary_obs; 
+
+
+    %{
+    x_min = x_intersection_obs;
+    x_max = x_intersection_obs+10/dx; 
     
-        if wd <= s_Im_boundary                       % satisfies peak-time/Im boundary
-            if wn < best_wn                % keep smallest wn
-                best_wn = wn;
-                best_delta = delta;
+    for x = x_min:dx:x_max
+        S_Re = -x;
+
+        for delta = damping_range
+            wn = x / delta;
+            wd = wn * sqrt(1 - delta^2);
+
+            % tp (horizontal) is the active limit here
+            if wd <= s_Im_boundary_obs
+                if abs(x) <= abs(best_re)
+                    best_re    = S_Re
+                    best_delta = delta
+                    best_im    = wd
+                end
             end
         end
     end
-
-    if isnan(best_delta)
-    error("No valid poles found for δ in [0.75,1] that satisfy Im boundary.");
-    end
-
+    %}
 end
 
-S_Im = best_wn * sqrt(1 - best_delta^2);
+%end
 
-poles_observer = [S_Re + 1i*S_Im , S_Re - 1i*S_Im, dom_sub_ratio*S_Re, dom_sub_ratio*S_Re ]; 
+if isnan(best_delta)
+error("No valid poles found for δ in [0.75,1] that satisfy Im boundary observer.");
+end
+
+poles_observer = [best_re + 1i*best_im , best_re - 1i*best_im, dom_sub_ratio*best_re, dom_sub_ratio*best_re ]; 
 
 G = place(sys.A', sys.C', poles_observer).';
 
 
-
-
-%{
-
-while(~pass && delta_eval >= 0.5)
-
-    wn = (4*safety_factor)/(delta_eval*ts);
-    s_real_eval = -wn*delta_eval;
-    
-    s_imm_eval = wn*sqrt(1-delta_eval^2); 
-    
-         if(s_imm_eval < s_Im_boundary)
-        
-             theta_eval = acos(abs(s_real_eval)/(sqrt(s_real_eval^2 + s_imm_eval^2))); 
-             if ( theta_eval <= theta_limit)
-    
-                 poles_controller = [s_real_eval + 1i*s_imm_eval, s_real_eval - 1i*s_imm_eval, 3*s_real_eval, 3*s_real_eval ]; 
-                    
-                 K = place(sys.A, sys.B, poles_controller); 
-                 pass = true; 
-             end
-         end
-    
-     delta_eval = delta_eval - 0.01; 
-end
-
-if (~pass)
-    disp("No valid solution K"); 
-    return; 
-end
-
-ts_observer = ts/3; 
-tp_observer= tp/3; 
-
-s_Im_boundary = (pi*safety_factor)/tp_observer; 
-pass = false; 
-delta_eval = 1; 
-
-while(~pass && delta_eval >= 0.5)
-
-    wn = (4*safety_factor)/(delta_eval*ts_observer);
-    s_real_eval = -wn*delta_eval;
-    
-    s_imm_eval = wn*sqrt(1-delta_eval^2); 
-    
-         if(s_imm_eval < s_Im_boundary)
-        
-             theta_eval = acos(abs(s_real_eval)/(sqrt(s_real_eval^2 + s_imm_eval^2))); 
-             if ( theta_eval <= theta_limit)
-    
-                 poles_observer = [s_real_eval + 1i*s_imm_eval, s_real_eval - 1i*s_imm_eval, 3*s_real_eval, 3*s_real_eval ]; 
-                    
-                 G = place(sys.A', sys.C', poles_observer)'; 
-                 pass = true; 
-             end
-        end
-    
-     delta_eval = delta_eval - 0.01; 
-end
-
-if (~pass)
-    disp("No valid solution G"); 
-    return; 
-end
-
-%}
 end

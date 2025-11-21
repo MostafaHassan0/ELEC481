@@ -8,7 +8,7 @@ B = sys.B;
 C = sys.C;
 
 
-x0 = lin_points.x0/100;
+x0 = lin_points.x0;
 y0 = lin_points.y0/100;
 u0 = lin_points.u0;
 
@@ -41,3 +41,4 @@ u_min = -30000;
 
 u = max(min(u, u_max), u_min); 
 end
+
