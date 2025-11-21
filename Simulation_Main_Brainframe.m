@@ -70,22 +70,19 @@ plot_velocity = false;
 %how much faster response is of observer than controller
 ratio_K_G = 3; 
 %ratio between dominant poles and sub poles
-dom_sub_ratio = 6; 
-
-%will look from 0.5x max_damping_ratio
-zeta_min_ratio = 0.5;
+dom_sub_ratio = 4; 
 
 %performance specs
 
 %Percentage overshoot: takes 0 -
-Per_OS = 0.15; 
-tp = 0.2;
-ts = 0.8; 
+Per_OS = 0.1; 
+tp = 0.1;
+ts = 4; 
 
 safety_factor = 0.95; 
 
 
-params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G, 'zeta_min_ratio', zeta_min_ratio, 'safety_factor', safety_factor );
+params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G, 'safety_factor', safety_factor );
 
 
 
@@ -111,7 +108,7 @@ y2_goal = y20;
 %y20 is in negative meters, with the top at 0, bottom at -0.12
 
 %Define puck 1 initial conditions here, do not put in a stupid acceleration
-y1_initial = 0.01; 
+y1_initial = 0.0001; 
 dy1_initial = 0.00; 
 
 %Define puck 2 initial conditions here, do not put in a stupid acceleration
@@ -131,10 +128,10 @@ if (y2_initial > 0 || y2_initial <= (y1_initial-yc/100))
     return
 end
 
-xhat_max = sqrt((y10/100 - y1_initial )^2 + ((y20 + yc)/100 + y2_initial)^2);
+xhat_max = [(y10/100 - y1_initial ); 0;  ((y20 + yc)/100 + y2_initial); 0];
 
-params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G, 'zeta_min_ratio', zeta_min_ratio, ...
-    'safety_factor', safety_factor, xhat_max, xhat_max );
+params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G,  ...
+    'safety_factor', safety_factor);
 
 
 %-------------------------------------------------------------------------
@@ -148,6 +145,10 @@ params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ra
 
 if (load_controller == 1)
     [G, K, poles_controller, poles_observer]  = create_control_sys(sys, params_cs); 
+
+    max_u = abs(K*xhat_max);
+
+    sprintf('Max u predicted u = %d \n', abs(max_u(2, 1)))
 
     if (~pass_linearize)
         return; 
@@ -345,15 +346,8 @@ if (load_controller == 1)
         if i==1, legend('state','estimate'); end
     end
     xlabel('Time (s)');
-    
-    figure;
-    for i = 1:4
-        subplot(4,1,i);
-        plot(t, x(i,:) - x_estimated(i,:));
-        ylabel(sprintf('e_%d', i));
-    end
-    xlabel('Time (s)');
-    sgtitle('State estimation error x - x\_hat');
+    title('State Estimation vs States');
+   
 end
 if (plot_velocity == true)
     figure;
