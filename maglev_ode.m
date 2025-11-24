@@ -1,4 +1,4 @@
-function dxdt = maglev_ode(~, x, u, params)
+function dxdt  = maglev_ode(~, x, u, params)
 
 %the silliness that proceeds is due to the procedure of the maglev manual
 %which calculates the force laws in centimeters, however the differential

@@ -37,10 +37,10 @@ drag = 5e-2; %drag minimum
 %drag = 2.5e-1; %drag maximum
 min_gap = 0.25; %cm, break condition for simulation
 e = 0.15; 
-
-params = struct('m',m,'a',a,'b',b,'c',c,'d',d,'yc',yc,'g',g,'n',n,'drag',drag,'min_gap',min_gap, 'e', e);
-
 umax = 30000; 
+
+params = struct('m',m,'a',a,'b',b,'c',c,'d',d,'yc',yc,'g',g,'n',n, ...
+    'drag',drag,'min_gap',min_gap, 'e', e, 'umax', umax);
 
 
 %--------------------------------------------------------------------
@@ -68,24 +68,22 @@ load_controller = 1;
 plot_velocity = false; 
 
 %how much faster response is of observer than controller
-ratio_K_G = 3; 
+ratio_K_G = 4.8569   ; 
 %ratio between dominant poles and sub poles
-dom_sub_ratio = 6; 
-
-%will look from 0.5x max_damping_ratio
-zeta_min_ratio = 0.5;
+dom_sub_ratio  =  3.9873  ; 
 
 %performance specs
 
 %Percentage overshoot: takes 0 -
-Per_OS = 0.15; 
-tp = 0.2;
-ts = 0.8; 
 
-safety_factor = 0.95; 
+damping_ctl_dom = 0.81695;
+damping_ctl_sub = 0.75937; 
 
+damping_obsv_dom = 0.85182;
+damping_obsv_sub = 0.67283 ; 
 
-params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G, 'zeta_min_ratio', zeta_min_ratio, 'safety_factor', safety_factor );
+%represents abs(re{s})
+starting_pole = 4.0312  ; 
 
 
 
@@ -93,7 +91,7 @@ params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ra
 Ts = 0.000884; 
 
 %The following defines length of simulation in seconds
-t_sim = 15; 
+t_sim = 6; 
 
 %linearization coordinates in centimeters
 y10 = 2; 
@@ -105,48 +103,60 @@ y1_goal = y10;
 
 y2_goal = y20; 
 
+r = 1; 
+
 
 %THE FOLLOWING MUST BE DEFINED IN METERS
 
 %y20 is in negative meters, with the top at 0, bottom at -0.12
 
 %Define puck 1 initial conditions here, do not put in a stupid acceleration
-y1_initial = 0.01; 
+y1_initial = 0.0001; 
 dy1_initial = 0.00; 
 
 %Define puck 2 initial conditions here, do not put in a stupid acceleration
 
 
-y2_initial = -(yc - 6.225)/100; 
+y2_initial = -0.03; 
 dy2_initial = 0; 
 
 if (y1_initial < 0 || y1_initial > yc + y2_initial/100)
-    dip("invalid input y1")
+    disp("invalid input y1")
     return
 end
 
 
 if (y2_initial > 0 || y2_initial <= (y1_initial-yc/100))
-    dip("invalid input y2")
+    disp("invalid input y2")
     return
 end
 
-xhat_max = sqrt((y10/100 - y1_initial )^2 + ((y20 + yc)/100 + y2_initial)^2);
 
-params_cs = struct('Per_OS',Per_OS ,'tp',tp,'ts',ts, 'dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G, 'zeta_min_ratio', zeta_min_ratio, 'safety_factor', safety_factor );
+params_cs = struct('dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G,  ...
+    'damping_ctl_dom', damping_ctl_dom, 'damping_ctl_sub' , damping_ctl_sub, ...
+    'damping_obsv_dom', damping_obsv_dom, 'damping_obsv_sub', damping_obsv_sub,...
+    'starting_pole', starting_pole, 'r', r);
 
 
 %-------------------------------------------------------------------------
 %           Controller Creation
 %------------------------------------------------------------------------
 
+
+
 % Choose complete or simplified create system depending on what you use to
 % create your controller 
 
 [sys, u10, u20, x10, x30, pass_linearize] = Create_System_Complete(params, y10, y20); 
 
+lin_points.x0 = [x10; 0; x30; 0];
+lin_points.y0 = [y10; y20];
+lin_points.u0 = [u10; u20];
+
 if (load_controller == 1)
-    [G, K, poles_controller, poles_observer]  = create_control_sys(sys, params_cs); 
+    %[Valid_Controllers]  = create_control_sys(sys, params_cs, params, lin_points); 
+    Valid_Controllers = create_control_sys(sys, params_cs, params, lin_points);
+
 
     if (~pass_linearize)
         return; 
@@ -154,241 +164,145 @@ if (load_controller == 1)
 end
 
 
-
-%-------------------------------------------------------------------------
-%       The Sim Loop 
-%-------------------------------------------------------------------------
-
-%Each loop runs as follow
-
-% x[n] + u[n] -> [ SIM ] -> x[n + 1] -> [ controller ] -> u[n + 1] 
-
-%The simulation works under the basis that that there are two odometry
-%channels that publish discrete data at a rate of Ts (syncronized), thus 
-% this is the max rate at which the controller gets an update to determine
-% u[n + 1] (it cannot come to a new conclusion faster than Ts at this is
-% the rate of information transfer
-
-%Once the controller gets information, it computes and produces u[n + 1] 
-%which is fed into fed into the next simulation cycle. 
-
-%The simulation assumes constant u[n] throughout Ts and thus the ode solver
-%proceeds with constant values for u[n] throughout Ts (explained above)
-%computing the next state
-
-lin_points.x0 = [x10; 0; x30; 0];
-lin_points.y0 = [y10; y20];
-lin_points.u0 = [u10; u20];
-
-%de_linearize = @(tilda_coordinates) tilda_coordinates + lin_points; 
-
-t = 0:Ts: t_sim; 
-
-%inital sim values
-
-x_init = [y1_initial ; dy1_initial ; y2_initial ; dy2_initial]; 
+Performance = struct();
 
 
-u_init = [0; 0]; 
 
-%populating data matrix
 
-if (load_controller == 0)
+    %-------------------------------------------------------------------------
+    %       The Sim Loop 
+    %-------------------------------------------------------------------------
     
-    Data_matrix = zeros(7, numel(t)); 
-    y1_goal = y10; 
-    y2_goal = y20; 
-
-elseif (load_controller == 1)
-    Data_matrix = zeros(13, numel(t)); 
-
-end
-
-Data_matrix(1, :) = t ; %top row of data colum
-
-Data_matrix(2:5, 1) = x_init;  % rows 2:5 hold states y1, dy1, y2, dy2 respectively
-
-Data_matrix(6:7, 1) = u_init;  % rows 6:7 hold control effort u1, u2 respectively
-
-
-% By default there is no controller, each user will pull this code, and
-% create a unique branch. DO NOT MERGE YOUR VERSION WITH DEVEL BRANCH
-
-% FETCH DEVEL BRANCH -> CREATE YOUR OWN UNIQUE BRANCH FOR YOUR OWN TESTING
-
-
-for k = 1 : numel(t) 
-
-    x_current = Data_matrix(2:5, k); 
-
+    %Each loop runs as follow
+    
+    % x[n] + u[n] -> [ SIM ] -> x[n + 1] -> [ controller ] -> u[n + 1] 
+    
+    %The simulation works under the basis that that there are two odometry
+    %channels that publish discrete data at a rate of Ts (syncronized), thus 
+    % this is the max rate at which the controller gets an update to determine
+    % u[n + 1] (it cannot come to a new conclusion faster than Ts at this is
+    % the rate of information transfer
+    
+    %Once the controller gets information, it computes and produces u[n + 1] 
+    %which is fed into fed into the next simulation cycle. 
+    
+    %The simulation assumes constant u[n] throughout Ts and thus the ode solver
+    %proceeds with constant values for u[n] throughout Ts (explained above)
+    %computing the next state
+    
+    
+    t = 0:Ts: t_sim; 
+    
+    %inital sim values
+    
+    x_init = [y1_initial ; dy1_initial ; y2_initial ; dy2_initial]; 
+    
+    
+    u_init = [0; 0]; 
+    
+    %populating data matrix
+    
     if (load_controller == 0)
-
-        u_current = Data_matrix(6:7, k);
-        if(k ~= numel(t))
-            Data_matrix(6:7, k+1) = u_current;
-        end
+        
+        Data_matrix = zeros(7, numel(t)); 
+        y1_goal = y10; 
+        y2_goal = y20; 
     
     elseif (load_controller == 1)
-
-        %x_hat = Data_matrix(8:11, k-1); 
-
-        y = [x_current(1); x_current(3)]; 
-
-        x_hat_current = Data_matrix(8:11, k);
-
-        if (k ~= numel(t))
-
-            [x_hat_next, y_hat_next, u_current] = controller(G, K, sys, x_hat_current, y, Ts, lin_points);
+        Data_matrix = zeros(15, numel(t)); 
+        K = Valid_Controllers.K;
+        G = Valid_Controllers.G;
+        Kr = Valid_Controllers.Kr; 
+   
+    end
     
-            Data_matrix(8:11, k+1) = x_hat_next; 
+    Data_matrix(1, :) = t ; %top row of data colum
+    
+    Data_matrix(2:5, 1) = x_init;  % rows 2:5 hold states y1, dy1, y2, dy2 respectively
+    
+    Data_matrix(6:7, 1) = u_init;  % rows 6:7 hold control effort u1, u2 respectively
+    
+    
+    % By default there is no controller, each user will pull this code, and
+    % create a unique branch. DO NOT MERGE YOUR VERSION WITH DEVEL BRANCH
+    
+    % FETCH DEVEL BRANCH -> CREATE YOUR OWN UNIQUE BRANCH FOR YOUR OWN TESTING
+    
+    
+    for k = 1 : numel(t) 
+    
+        x_current = Data_matrix(2:5, k); 
+    
+        if (load_controller == 0)
+    
+            u_current = Data_matrix(6:7, k);
+            if(k ~= numel(t))
+                Data_matrix(6:7, k+1) = u_current;
+            end
         
-            Data_matrix(12:13, k+1 ) = y_hat_next; 
+        elseif (load_controller == 1)
     
-            Data_matrix(6:7, k) = u_current; 
+            %x_hat = Data_matrix(8:11, k-1); 
+    
+            y = [x_current(1); x_current(3)]; 
+    
+            x_hat_current = Data_matrix(8:11, k);
+    
+            if (k ~= numel(t))
+    
+                [x_hat_next, y_hat_next, u_current] = controller(G, K, sys, x_hat_current, y, Ts, lin_points);
+        
+                Data_matrix(8:11, k+1) = x_hat_next; 
+            
+                Data_matrix(12:13, k+1 ) = y_hat_next; 
+        
+                Data_matrix(6:7, k) = u_current; 
+            end
+    
+    
         end
-
-
+    
+        if (k ~= numel(t))
+    
+    
+            [x_next, sim_error]  = maglev_sim(Ts, x_current, u_current, params);
+          
+            if(sim_error)
+                break;
+            end
+        
+            Data_matrix(2:5, k + 1) = x_next;
+    
+        end
     end
 
-    if (k ~= numel(t))
-
-
-        [x_next, sim_error]  = maglev_sim(Ts, x_current, u_current, params);
-      
-        if(sim_error)
-            break;
-        end
-    
-        Data_matrix(2:5, k + 1) = x_next;
-
-    end
-
-
-end
-
-
-
-%-------------------------------------------------------------------------
-%                   Plotting
-%-------------------------------------------------------------------------
+%-------------------------------------------------------------------
+% Control System Evaluation
+%-------------------------------------------------------------------
 
 %Some simple plots are here for your use, feel free to add what you need 
 
-if sim_error 
-    error_mask = (t<= Ts*(k-1)); 
-    Data_matrix = Data_matrix(:, error_mask); 
-    t = t(error_mask);  
-end
-
-t_plot = zeros(1, numel(t)); 
-
-u = Data_matrix(6:7, :) ;
-
-x = Data_matrix(2:5, :); % Actual Dynamics, Defined by Sim in cm
-x(1, :) = 100*x(1, :); 
-x(3, :)= 100*x(3, :) + yc;
-
-if (load_controller == 1)
-    x_estimated =  Data_matrix(8:11, :)*m; %shift to output reference
-    x_estimated(1, :) = x_estimated(1, :)*100; 
-    x_estimated(3, :) = x_estimated(3, :)*100; 
-end
-
-
-% Plot Control Effort vs Position
-
-% u1, y1
-
-figure;
-
-% ---------- Position Plot Lower Magnet ----------
-subplot(2,1,1);
-plot(t, x(1,:), 'g-', 'LineWidth', 1.2);
-ylabel('Position (cm)');
-ylim([0, yc])
-title('Lower Magnet Position and Control Effort');
-grid on;
-
-% ---------- Control Effort Plot ----------
-subplot(2,1,2);
-plot(t, u(1,:), 'r-', 'LineWidth', 1.2);
-ylabel('Control Effort (DAC counts)');
-xlabel('Time (s)');
-grid on;
-
-figure;
-
-% ---------- Position Plot Upper Magnet ----------
-subplot(2,1,1);
-plot(t, x(3, :), 'g-', 'LineWidth', 1.2);
-ylabel('Position (cm)');
-ylim([0, yc])
-title('Upper Magnet Position and Control Effort');
-grid on;
-
-
-% ---------- Control Effort Plot ----------
-subplot(2,1,2);
-plot(t, u(2,:), 'r-', 'LineWidth', 1.2);
-ylabel('Control Effort (DAC counts)');
-xlabel('Time (s)');
-grid on;
-
-if (load_controller == 1)
-% assuming x and x_hat are 4×N arrays over time t
-    figure;
-    for i = 1:4
-        subplot(4,1,i);
-        plot(t, x(i,:), 'b-', t, x_estimated(i,:), 'r--');
-        ylabel(sprintf('x_%d', i));
-        if i==1, legend('state','estimate'); end
+    if sim_error 
+        error_mask = (t<= Ts*(k-1)); 
+        Data_matrix = Data_matrix(:, error_mask); 
+        t = t(error_mask);  
     end
-    xlabel('Time (s)');
     
-    figure;
-    for i = 1:4
-        subplot(4,1,i);
-        plot(t, x(i,:) - x_estimated(i,:));
-        ylabel(sprintf('e_%d', i));
+    t_plot = zeros(1, numel(t)); 
+    
+    u = Data_matrix(6:7, :) ;
+    
+    x = Data_matrix(2:5, :); % Actual Dynamics, Defined by Sim in cm
+    x(1, :) = 100*x(1, :); 
+    x(3, :)= 100*x(3, :) + yc;
+    
+    if (load_controller == 1)
+        x_estimated =  Data_matrix(8:11, :)*m; %shift to output reference
+        x_estimated(1, :) = x_estimated(1, :)*100; 
+        x_estimated(3, :) = x_estimated(3, :)*100; 
     end
-    xlabel('Time (s)');
-    sgtitle('State estimation error x - x\_hat');
-end
-if (plot_velocity == true)
-    figure;
-    
-    yyaxis left
-    plot(t, x(2, :), 'g-', 'LineWidth', 1.2); % upper magnet position (cm)
-    ylabel('Velocity (m/s)');
-    grid on;
-    
-    yyaxis right
-    plot(t, u(1,:), 'r-', 'LineWidth', 1.2); % control effort (counts)
-    ylabel('Control Effort (DAC counts)');
-    
-    xlabel('Time (s)');
-    title('Lower Magnet Control Effort vs Velocity');
-    legend('Position (cm)', 'Control Effort (counts)');
-    
-    %u2, dy2
-    
-    figure;
-    
-    yyaxis left
-    plot(t, x(4, :), 'g-', 'LineWidth', 1.2); % upper magnet position (cm)
-    ylabel('Velocity (m/s)');
-    grid on;
-    
-    yyaxis right
-    plot(t, u(2,:), 'r-', 'LineWidth', 1.2); % control effort (counts)
-    ylabel('Control Effort (DAC counts)');
-    
-    xlabel('Time (s)');
-    title('Upper Magnet Control Effort vs Velocity');
-    legend('Position (cm)', 'Control Effort (counts)');
-end
 
-%-------------------------------------------------------------------
+    %-------------------------------------------------------------------
 % Control System Evaluation
 %-------------------------------------------------------------------
 if (load_controller == 1)
@@ -451,19 +365,75 @@ if (load_controller == 1)
             break;
         end
     end
-    
 
-    disp('Lower Magnet performance goals: ');
-    fprintf('Percentage OS: %.3f, Peak Time: %.3f, Settling Time: %.3f \n \n',  Per_OS , tp, ts);
-    
+
+     disp(Valid_Controllers.poles_ctl);
+     rms_error = sqrt( mean((x - x_estimated).^2));
+     rms_error_total = sqrt( mean((x(:) - x_estimated(:)).^2));
+
     disp('Lower Magnet performance results: ');
-    fprintf('Percentage OS: %.3f, Peak Time: %.3f, Settling Time: %.3f \n \n \n',  Per_OS_y1, tp_y1_98, ts1);
-
-    disp('Upper Magnet performance goals: ');
-    fprintf('Percentage OS: %.3f, Peak Time: %.3f, Settling Time: %.3f \n \n',  Per_OS , tp, ts);
+    fprintf('Percentage OS: %.3f, Peak Time: %.3f, Settling Time: %.3f \n  \n',  Per_OS_y1, tp_y1_98, ts1);
 
     disp('Upper Magnet performance results: ');
-    fprintf('Percentage OS: %.3f, Peak Time: %.3f, Settling Time: %.3f \n',  Per_OS_y2, tp_y2_98, ts2);
+    fprintf('Percentage OS: %.3f, Peak Time: %.3f, Settling Time: %.3f \n \n',  Per_OS_y2, tp_y2_98, ts2);
+
+    disp('RMS Error: ')
+    fprintf('Total RMS Error: %.3f, State 1: %.3fState 2: %.3f.3,  State 3: %.3f.3 State 3: %.3f.3', ...
+        rms_error_total, rms_error(1), rms_error(2), rms_error(3), rms_error(4));
+
+    
+    figure;
+
+% ---------- Position Plot Lower Magnet ----------
+subplot(2,1,1);
+plot(t, x(1,:), 'g-', 'LineWidth', 1.2);
+ylabel('Position (cm)');
+ylim([0, yc]);
+title('Simulation %d: Lower Magnet Position and Control Effort');
+grid on;
+
+% ---------- Control Effort Plot ----------
+subplot(2,1,2);
+plot(t, u(1,:), 'r-', 'LineWidth', 1.2);
+ylabel('Control Effort (DAC counts)');
+xlabel('Time (s)');
+grid on;
+
+figure;
+
+% ---------- Position Plot Upper Magnet ----------
+subplot(2,1,1);
+plot(t, x(3, :), 'g-', 'LineWidth', 1.2);
+ylabel('Position (cm)');
+ylim([0, yc])
+title('Simulation %d: Upper Magnet Position and Control Effort');
+grid on;
+
+
+% ---------- Control Effort Plot ----------
+subplot(2,1,2);
+plot(t, u(2,:), 'r-', 'LineWidth', 1.2);
+ylabel('Control Effort (DAC counts)');
+xlabel('Time (s)');
+grid on;
+
+if (load_controller == 1)
+% assuming x and x_hat are 4×N arrays over time t
+    figure;
+    for i = 1:4
+        subplot(4,1,i);
+        plot(t, x(i,:), 'b-', t, x_estimated(i,:), 'r--');
+        ylabel(sprintf('x_%d', i));
+        if i==1, legend('state','estimate'); end
+    end
+    xlabel('Time (s)');
+    title('State Estimation vs States sim: %d');
+   
+end
+
+
+
+
 end
 
 

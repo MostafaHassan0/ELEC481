@@ -1,4 +1,4 @@
-function [x_hat_next, y_hat_next, u] = controller(G, K, sys, x_hat, y, Ts, lin_points)
+function [x_hat_next, y_hat_next, u] = controller(G, K, Kr, r, sys, x_hat, y, Ts, lin_points)
 
 % tilda means linearized frame of reference
 
@@ -22,7 +22,7 @@ y_tilde = y - y0;
 y_hat_tilde = C * x_hat_tilde;
 
 %current execution cycle control effort
-u_tilde = -K * x_hat_tilde;
+u_tilde = -K * x_hat_tilde +  Kr*r; 
 
 % observer dynamics in tilde coordinates
 x_hat_tilde_dot = A * x_hat_tilde + B * u_tilde + G * (y_tilde - y_hat_tilde);

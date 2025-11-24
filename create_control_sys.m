@@ -1,30 +1,41 @@
-function [G, K, poles_controller, poles_observer ]  = create_control_sys(sys, params_cs) % %Overshoot, rise time, settling time, 
+function [Valid_Controllers]  = create_control_sys(sys, params_cs, params, lin_points) % %Overshoot, rise time, settling time, 
 
 %The assumption is that controllability and observability have already been
 %evaluated
 
-Per_OS = params_cs.Per_OS; 
-tp =params_cs.tp;
-ts = params_cs.ts;
+damping_ctl_dom= params_cs.damping_ctl_dom;
+damping_ctl_sub= params_cs.damping_ctl_sub;
+damping_obsv_dom= params_cs.damping_obsv_dom;
+damping_obsv_sub= params_cs.damping_obsv_sub;
+umax = params.umax;
 ratio_K_G = params_cs.ratio_K_G;
 dom_sub_ratio = params_cs.dom_sub_ratio;
-safety_factor = params_cs.safety_factor; 
+dom_sub_obsv = params_cs.dom_sub_ratio;
+starting_pole = params_cs.starting_pole;
+A = sys.A; 
+B = sys.B; 
+C = sys.C; 
+
+
+y0 = lin_points.y0/100;
+y10 = y0(1,1); 
+y20 = y0(2, 1); 
+yc = params.yc/100;
+
+u0 = lin_points.u0;
+
+xhat_max = [y10; 0; (yc + y20 - 0.087); 0];
+
+
 
 %-----------------------------------------------------------------------
 %       Notes to improve
 %-------------------------------------------------------------------
 %
 
-%A 2ND order pole approximation will  be used as the the goal of the
-%control system is to make sure R(p1), R(p2) >> R(p3), R(p4) 
-%where p1, and p2 are the dominant poles and p1 -> p4 are poles after
-%shifted
-if(Per_OS >1)
-    disp("Per_OS must be between 0 -> 1")
-    return; 
-end
 
-disp("controller");
+
+%disp("controller");
 %best_re = inf;
 %best_delta = NaN;
 %best_im = NaN;
@@ -32,113 +43,98 @@ disp("controller");
 
 %Define Constants and System params
 
-damping_ratio_max = - log(Per_OS)/(sqrt(pi^2+(log(Per_OS))^2)); 
-
-theta = acos(damping_ratio_max);
-
-%damping_ratio_min = zeta_min_ratio* damping_ratio_max_max;
-
-
-%Controller 
+thetadom_ctl  = acos(damping_ctl_dom);
+thetasub_ctl  = acos(damping_ctl_sub);
+ctl_searchspace = starting_pole;
+Valid_Controllers = struct([]); 
+index = 1; 
 
 
-%damping_range = damping_ratio_min:0.01:damping_ratio_max;
+%for i = 1:numel(ctl_searchspace)
+for i = 1:numel(ctl_searchspace)
+    valid_K = true; 
+    s_re_dom = -ctl_searchspace(i);
+    if (~(damping_ctl_dom == 0 ))
+        s_im_dom = tan(thetadom_ctl)*s_re_dom;
+    else
+        s_im_dom = 0;
+    end
+    s_re_sub = -ctl_searchspace(i)*dom_sub_ratio;
+    if (~(damping_ctl_sub == 0) )
+        s_im_sub = tan(thetasub_ctl)*abs(s_re_sub);
+    else
+        s_im_sub = 0;
+    end
+    poles_ctl = [s_re_dom + s_im_dom*1i, s_re_dom - s_im_dom*1i,  s_re_sub+ s_im_sub*1i,  s_re_sub-s_im_sub*1i];
+    try
+        K = place(sys.A, sys.B, poles_ctl);
+    catch
+        continue;
+    end
+    u_worst = -K*xhat_max + u0; 
+    u_worst = abs(u_worst);
+    if (max(u_worst)<umax && valid_K == true)
+        Valid_Controllers(index).K = K; 
+        Valid_Controllers(index).poles_ctl = poles_ctl; 
 
-s_Im_boundary_ctl = pi/(tp*safety_factor);
-
-s_Re_boundary_ctl = 4/(ts*safety_factor);
-
-x_intersection_ctl = s_Im_boundary_ctl / tan(theta) ;  % x where theta meets imaginary boundary 
-
-
-if abs(s_Re_boundary_ctl) <= abs(x_intersection_ctl)
-    % -------- Case A: Ts line right of intersection -> wedge is active --------
-    best_im = s_Im_boundary_ctl ;
-    best_re = -x_intersection_ctl;
-
-    disp("Case: CONTROLLER – Wedge boundary dominates (intersection point)");
-    
-else
-    % -------- Case B: Ts line left of intersection -> tp is active --------
-
-    best_im = s_Im_boundary_ctl ;
-    best_re = -s_Re_boundary_ctl; 
-
-    disp("Case: CONTROLLER – Peak-time boundary dominates (ts line)");
-
+        index = index + 1; 
+    end
 end
 
-poles_controller = [best_re + 1i*best_im  , best_re - 1i*best_im , dom_sub_ratio*best_re, dom_sub_ratio*best_re ]; 
-
-K = place(sys.A, sys.B, poles_controller); 
-
-wn_ctl = sqrt(best_re^2 + best_im^2);
-zeta_ctl = abs(best_re) / wn_ctl;
-
-fprintf("Selected Dominant Pole (Controller):  Re = %.4f,  Im = %.4f\n", best_re, best_im);
-fprintf("Damping Ratio (Controller):           %.4f\n", zeta_ctl);
-fprintf("Natural Frequency wn (Controller):    %.4f rad/s\n\n", wn_ctl);
+thetadom_obs  = acos(damping_obsv_dom);
+thetasub_obs =  acos(damping_obsv_sub);
+invalid = false(1, numel(Valid_Controllers));
 
 
+for i = 1:numel(Valid_Controllers)
+    valid_G = true;
+    s_re_dom = real(Valid_Controllers(i).poles_ctl(1, 1))*ratio_K_G;
+    if (~(damping_obsv_dom ==0))
+        s_im_dom = abs(s_re_dom)*tan(thetadom_obs);
+    else 
+        s_im_dom = 0;
+    end
+    s_re_sub = s_re_dom *dom_sub_obsv; 
+    if (~(damping_obsv_sub ==0))
+        s_im_sub = abs(s_re_sub)*tan(thetasub_obs);
+    else
+        s_im_sub = 0;
+    end
 
-ts_observer = ts/ratio_K_G; 
-tp_observer= tp/ratio_K_G; 
+    poles_obs = [s_re_dom + s_im_dom*1i, s_re_dom - s_im_dom*1i,  s_re_sub+ s_im_sub*1i,  s_re_sub-s_im_sub*1i];
+    try
+        G = place(sys.A', sys.C', poles_obs).';
+    catch
+            invalid(i) = true;
+            valid_G = false; 
+        continue;
+    end
+    if (valid_G == true)
 
-%best_delta = NaN;
-
-%best_re = inf;
-
-%best_im = NaN;
-
-
-%Observer
-
-s_Im_boundary_obs = pi/tp_observer;
-
-s_Re_boundary_obs = 4/ts_observer ;
-
-x_intersection_obs = s_Im_boundary_obs / tan(theta) ;
-
-% -------- Display Observer Case --------
-disp("---- Observer Pole Selection ----");
-
-% Compute damping ratio
-wn_obs = sqrt(best_re^2 + best_im^2);
-zeta_obs = abs(best_re) / wn_obs;
-
-fprintf("Selected Dominant Pole (Observer):    Re = %.4f,  Im = %.4f\n", best_re, best_im);
-fprintf("Damping Ratio (Observer):             %.4f\n", zeta_obs);
-fprintf("Natural Frequency wn (Observer):      %.4f rad/s\n\n", wn_obs);
-
-
-if abs(s_Im_boundary_obs) <= abs(x_intersection_obs)
-    % -------- Case A: Ts line right of intersection -> wedge active --------
-
-    best_im = s_Im_boundary_obs ;
-    best_re = -x_intersection_obs;
-
-    disp("Case: OBSERVER – Wedge boundary dominates (intersection point)");
-    
-else
-    % -------- Case B: Ts line left of intersection -> tp is active --------
-
-    best_im = s_Im_boundary_obs ;
-    best_re = -s_Re_boundary_obs; 
-
-    disp("Case: OBSERVER – Peak-time boundary dominates (ts line)");
-
+        Valid_Controllers(i).G = G; 
+        Valid_Controllers(i).poles_obs = poles_obs; 
+    end
 end
 
-wn_obs = sqrt(best_re^2 + best_im^2);
-zeta_obs = abs(best_re) / wn_obs;
+Valid_Controllers(invalid) = [];
 
-fprintf("Selected Dominant Pole (Observer):    Re = %.4f,  Im = %.4f\n", best_re, best_im);
-fprintf("Damping Ratio (Observer):             %.4f\n", zeta_obs);
-fprintf("Natural Frequency wn (Observer):      %.4f rad/s\n\n", wn_obs);
+if ~isfield(Valid_Controllers,'K') || isempty(Valid_Controllers.K) || ...
+   ~isfield(Valid_Controllers,'G') || isempty(Valid_Controllers.G)
+
+    Valid_Controllers = struct( ...
+        'K', NaN, ...
+        'G', NaN, ...
+        'poles_ctl', [], ...
+        'poles_obs', [] ...
+    );
+end
+Acl =  A - B*K;
+M = C*(Acl\B);    % = C * (A-BK)^(-1) * B
+Kr = inv(M);      % final 2x2 feedforward gain
+
+Valid_Controllers.Kr = Kr; 
+ 
 
 
-poles_observer = [best_re + 1i*best_im , best_re - 1i*best_im, dom_sub_ratio*best_re, dom_sub_ratio*best_re ]; 
-
-G = place(sys.A', sys.C', poles_observer).';
-
+%}
 end
