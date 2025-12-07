@@ -25,7 +25,7 @@ if (Baysian_search == 1)
         % --- Define optimization variables ---
 
             optimVars = [
-    optimizableVariable('starting_pole',   [3, 5])              % controller dominant real part
+    optimizableVariable('starting_pole',   [4, 5])              % controller dominant real part
     optimizableVariable('damping_ctl_dom', [0.5, 1.0])        % controller dominant damping
     optimizableVariable('damping_ctl_sub', [0.5, 1.0])        % controller subdominant damping
     optimizableVariable('dom_sub_ratio',   [3.5, 4.5])            % controller dom/sub real-part ratio
@@ -33,14 +33,14 @@ if (Baysian_search == 1)
     optimizableVariable('damping_obsv_dom',[0.5, 1.0])        % observer dominant damping
     optimizableVariable('damping_obsv_sub',[0.5, 1.0])        % observer subdominant damping
     optimizableVariable('dom_sub_obsv',    [2.0, 6.0])           % observer dom/sub real-part ratio
-    optimizableVariable('ratio_K_G',       [3, 5])              % observer speed relative to controller
+    optimizableVariable('ratio_K_G',       [3, 4])              % observer speed relative to controller
 ];
 
         
         % --- Run Bayesian Optimization ---
         results = bayesopt(@(search_params) maglev_objective(search_params, params, BaysianSearchController), ...
                        optimVars, ...
-                       'MaxObjectiveEvaluations', 100, ...
+                       'MaxObjectiveEvaluations', 50, ...
                        'IsObjectiveDeterministic', false, ...
                        'Verbose', 1);
     

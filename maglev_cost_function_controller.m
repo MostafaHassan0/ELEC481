@@ -25,24 +25,22 @@ function cost = maglev_cost_function_controller(metrics)
     % ========================
     % Weights (tunable)
     % ========================
-    w_OS = 20;
-    w_ts = 20;
-    w_tp = 5;
+    w_OS = 40;
+    w_ts = 40;
+    w_tp = 40;
 
-    w_rms_y1 = 20;
-    w_rms_y2 = 20;
+    RMS= 25;
 
     % ========================
     % Objective
     % ========================
-    cost = ...
-        w_OS * (2*OS_lower + OS_upper) + ...
-        w_ts * (2*ts_lower + ts_upper) + ...
-        w_tp * (tp_lower + tp_upper) + ...
-        w_rms_y1 * RMS_y1_est + ...
-        w_rms_y2 * RMS_y2_est;
-
+cost = ...
+    w_OS *(OS_lower^2 + OS_upper^2) + ...
+    w_ts*(ts_lower^2 + ts_upper^2) + ...
+    w_tp *(tp_lower^2/2 + 2*tp_upper^2) + ...
+    RMS*(RMS_y1_est^2 + RMS_y2_est^2);
 end
+
 
 
 function x = sanitize(x, HUGE)

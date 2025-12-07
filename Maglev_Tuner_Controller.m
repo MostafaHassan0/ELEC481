@@ -120,7 +120,7 @@ end
 params_cs = struct('dom_sub_ratio', dom_sub_ratio,'ratio_K_G',ratio_K_G,  ...
     'damping_ctl_dom', damping_ctl_dom, 'damping_ctl_sub' , damping_ctl_sub, ...
     'damping_obsv_dom', damping_obsv_dom, 'damping_obsv_sub', damping_obsv_sub,...
-   'starting_pole', starting_pole);
+   'starting_pole', starting_pole, 'dom_sub_obsv', dom_sub_obsv);
 
 
 %-------------------------------------------------------------------------
@@ -171,6 +171,7 @@ Performance = struct();
 
     K = Valid_Controllers.K;
     G = Valid_Controllers.G;
+    Kr = Valid_Controllers.Kr;
     
     
     t = 0:Ts: t_sim; 
@@ -203,6 +204,8 @@ Performance = struct();
     
     
     for k = 1 : numel(t) 
+
+        r = [0; 0];
     
         x_current = Data_matrix(2:5, k); 
 
@@ -214,8 +217,7 @@ Performance = struct();
 
         if (k ~= numel(t))
 
-            [x_hat_next, y_hat_next, u_current] = controller(G, K, sys, x_hat_current, y, Ts, lin_points);
-    
+            [x_hat_next, y_hat_next, u_current] = controller(G, K, Kr, r , sys, x_hat_current, y, Ts, lin_points); 
             Data_matrix(8:11, k+1) = x_hat_next; 
         
             Data_matrix(12:13, k+1 ) = y_hat_next; 

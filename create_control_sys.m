@@ -7,11 +7,15 @@ damping_ctl_dom= params_cs.damping_ctl_dom;
 damping_ctl_sub= params_cs.damping_ctl_sub;
 damping_obsv_dom= params_cs.damping_obsv_dom;
 damping_obsv_sub= params_cs.damping_obsv_sub;
+
 umax = params.umax;
+
 ratio_K_G = params_cs.ratio_K_G;
 dom_sub_ratio = params_cs.dom_sub_ratio;
 dom_sub_obsv = params_cs.dom_sub_ratio;
 starting_pole = params_cs.starting_pole;
+
+
 A = sys.A; 
 B = sys.B; 
 C = sys.C; 
