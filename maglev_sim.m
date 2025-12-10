@@ -1,4 +1,4 @@
-function [x_next, sim_error]  = maglev_sim(Ts, x, u, params)
+function [x_next, sim_error]  = maglev_sim(Ts, x, params, lin_points, K, G, load_controller, load_observer, sys, A_RO, B_RO, r, ulin, xlin)
 
 %This simulation will use the more complicated differential equations for a
 %more realistic simulation
@@ -15,7 +15,18 @@ function [x_next, sim_error]  = maglev_sim(Ts, x, u, params)
 
 sim_error = false;
 
-odefun = @(t, x) maglev_ode(t, x, u, params);
+
+if (load_observer == 1)
+    odefun = @(t, x) maglev_cont_input(t, x, params, lin_points, K, G, sys, ulin, xlin);
+elseif (load_observer == 2)
+    odefun = @(t, x)maglev_cont_RO(t, x, params, lin_points, K, G, A_RO, B_RO); 
+elseif (load_controller == 0)
+    u = lin_points.u0; 
+    odefun = @(t, x) maglev_ode(t, x, params, u, r);
+elseif (load_controller == 1)
+    odefun = @(t, x) maglev_closedloop(t, x, params, K, lin_points, r, ulin, xlin); 
+end 
+
 
 % Use small steps to force robust integration during Ts
 opts = odeset('RelTol', 1e-6, 'AbsTol', 1e-9, 'MaxStep', Ts/4);
@@ -77,7 +88,15 @@ end
 %% -------------------------------------------------------------
 % Save modified state as next state
 %% -------------------------------------------------------------
-x_next = [y1; dy1; y2; dy2];
+if(load_observer == 0)
+    x_next = [y1; dy1; y2; dy2];
+elseif (load_observer == 1)
+     x_hat = x_next(5:8); 
+     x_next = [y1; dy1; y2; dy2; x_hat];
+elseif (load_observer == 2)
+    x_hat = x_next(5:6); 
+    x_next = [y1; dy1; y2; dy2; x_hat];
+end
 
 end
 

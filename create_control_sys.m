@@ -1,144 +1,93 @@
-function [Valid_Controllers]  = create_control_sys(sys, params_cs, params, lin_points) % %Overshoot, rise time, settling time, 
+function [K_ret, results_K, K_poles] = create_control_sys(sys, params_cs, params, lin_points) % %Overshoot, rise time, settling time, 
 
 %The assumption is that controllability and observability have already been
 %evaluated
 
-damping_ctl_dom= params_cs.damping_ctl_dom;
-damping_ctl_sub= params_cs.damping_ctl_sub;
-damping_obsv_dom= params_cs.damping_obsv_dom;
-damping_obsv_sub= params_cs.damping_obsv_sub;
+ts= params_cs.ts;
+tp = params_cs.tp;
+Per_OS= params_cs.Per_OS;
+x_worst = params_cs.x_worst;
 
-umax = params.umax;
 
-ratio_K_G = params_cs.ratio_K_G;
-dom_sub_ratio = params_cs.dom_sub_ratio;
-dom_sub_obsv = params_cs.dom_sub_ratio;
-starting_pole = params_cs.starting_pole;
+results_K = struct('K', {}, 'lambda_min', {}, 'poles', {});
 
+umax = params.umax; 
 
 A = sys.A; 
 B = sys.B; 
 C = sys.C; 
 
-
-y0 = lin_points.y0/100;
-y10 = y0(1,1); 
-y20 = y0(2, 1); 
-yc = params.yc/100;
-
 u0 = lin_points.u0;
 
-xhat_max = [y10; 0; (yc + y20 - 0.087); 0];
+x0 = lin_points.x0; 
 
+eval_range_x = linspace(5, 2, 30); 
 
+eval_range_y = 10; 
 
-%-----------------------------------------------------------------------
-%       Notes to improve
-%-------------------------------------------------------------------
-%
+damping_ratio = -log(Per_OS)./(sqrt(pi^2 + (log(Per_OS))^2)); 
 
+wd_min = pi/tp; 
 
+delta_min = -4/ts; 
 
-%disp("controller");
-%best_re = inf;
-%best_delta = NaN;
-%best_im = NaN;
-%dx = 0.25; 
+theta = acos(damping_ratio); 
 
-%Define Constants and System params
+Re_bounds = max(abs(wd_min/tan(theta)), abs(delta_min)); 
 
-thetadom_ctl  = acos(damping_ctl_dom);
-thetasub_ctl  = acos(damping_ctl_sub);
-ctl_searchspace = starting_pole;
-Valid_Controllers = struct([]); 
+Re_dom = -Re_bounds - 1e-4; 
+
+Im_dom = wd_min + 1e-4; 
+
 index = 1; 
 
 
-%for i = 1:numel(ctl_searchspace)
-for i = 1:numel(ctl_searchspace)
-    valid_K = true; 
-    s_re_dom = -ctl_searchspace(i);
-    if (~(damping_ctl_dom == 0 ))
-        s_im_dom = tan(thetadom_ctl)*s_re_dom;
-    else
-        s_im_dom = 0;
-    end
-    s_re_sub = -ctl_searchspace(i)*dom_sub_ratio;
-    if (~(damping_ctl_sub == 0) )
-        s_im_sub = tan(thetasub_ctl)*abs(s_re_sub);
-    else
-        s_im_sub = 0;
-    end
-    poles_ctl = [s_re_dom + s_im_dom*1i, s_re_dom - s_im_dom*1i,  s_re_sub+ s_im_sub*1i,  s_re_sub-s_im_sub*1i];
-    try
-        K = place(sys.A, sys.B, poles_ctl);
-    catch
-        continue;
-    end
-    u_worst = -K*xhat_max + u0; 
-    u_worst = abs(u_worst);
-    if (max(u_worst)<umax && valid_K == true)
-        Valid_Controllers(index).K = K; 
-        Valid_Controllers(index).poles_ctl = poles_ctl; 
+for n = 1: numel(eval_range_x)
+    Re_sub = Re_dom * eval_range_x(n); 
+    y_max = abs(Re_sub) * tan(theta); 
+    y_eval = linspace(0, y_max - 1e-4, eval_range_y); 
 
-        index = index + 1; 
-    end
-end
+    for j = 1:numel(y_eval)
+        poles = [Re_dom + Im_dom*1i;  Re_dom - Im_dom*1i;  Re_sub + y_eval(j)*1i;  Re_sub - y_eval(j)*1i ]; 
+        try
+            K = place(A, B, poles);
+        catch
+            continue
+        end
 
-thetadom_obs  = acos(damping_obsv_dom);
-thetasub_obs =  acos(damping_obsv_sub);
-invalid = false(1, numel(Valid_Controllers));
+        %--------------------------------------------------------------
+        %               Evaluation Metrics
+        %--------------------------------------------------------------
 
+        %Saturation 
+        u_ = u0 - K*(x_worst - x0); 
 
-for i = 1:numel(Valid_Controllers)
-    valid_G = true;
-    s_re_dom = real(Valid_Controllers(i).poles_ctl(1, 1))*ratio_K_G;
-    if (~(damping_obsv_dom ==0))
-        s_im_dom = abs(s_re_dom)*tan(thetadom_obs);
-    else 
-        s_im_dom = 0;
-    end
-    s_re_sub = s_re_dom *dom_sub_obsv; 
-    if (~(damping_obsv_sub ==0))
-        s_im_sub = abs(s_re_sub)*tan(thetasub_obs);
-    else
-        s_im_sub = 0;
-    end
+        if (any(abs(u_) > umax))
+            continue
+        end
+        Acl = A - B*K; 
+        if any(real(eig(Acl)) > 0)
+            continue
+        end
 
-    poles_obs = [s_re_dom + s_im_dom*1i, s_re_dom - s_im_dom*1i,  s_re_sub+ s_im_sub*1i,  s_re_sub-s_im_sub*1i];
-    try
-        G = place(sys.A', sys.C', poles_obs).';
-    catch
-            invalid(i) = true;
-            valid_G = false; 
-        continue;
-    end
-    if (valid_G == true)
-
-        Valid_Controllers(i).G = G; 
-        Valid_Controllers(i).poles_obs = poles_obs; 
+        Wc = lyap(Acl, B*B.');
+        lambda_min = min(eig(Wc)); 
+        results_K(index).K = K;
+        results_K(index).poles = poles;
+        results_K(index).lambda_min = lambda_min;
+        index = index + 1;  
     end
 end
 
-Valid_Controllers(invalid) = [];
+if ~isempty(results_K)
+    all_lam = [results_K.lambda_min];
+    [~, best_idx] = max(all_lam);
 
-if ~isfield(Valid_Controllers,'K') || isempty(Valid_Controllers.K) || ...
-   ~isfield(Valid_Controllers,'G') || isempty(Valid_Controllers.G)
+    K_ret = results_K(best_idx).K;
+    K_poles = results_K(best_idx).poles;
 
-    Valid_Controllers = struct( ...
-        'K', NaN, ...
-        'G', NaN, ...
-        'poles_ctl', [], ...
-        'poles_obs', [] ...
-    );
+else
+    error('No feasible controllers found.');
 end
-Acl =  A - B*K;
-M = C*(Acl\B);    % = C * (A-BK)^(-1) * B
-Kr = inv(M);      % final 2x2 feedforward gain
 
-Valid_Controllers.Kr = Kr; 
- 
-
-
-%}
 end

@@ -11,17 +11,21 @@ if(version ~= 1 && version ~= 2)
 end
 
 m = 0.12; %kg
-a = 33.4580; %cm
-b = 0.6215; %cm
-c = 23213 ; %N *cm^4
-d = 4.23 ; %cm
-yc = 12;  % units cm 
+a = 1.65; %cm
+b = 6.2; %cm
+c = 23984 ; %N *cm^4
+d = 3.7698 ; %cm
+yc = 13;  % units cm 
 g = 9.81; %m/s^2
 n = 4; 
-drag = 3e-2; %drag coefficient was determined empirically
+drag = 5e-2; %drag minimum 
+%drag = 2.5e-1; %drag maximum
 min_gap = 0.25; %cm, break condition for simulation
+e = 1; %Bounce Efficiency
+umax = 30000; 
 
-params = struct('m',m,'a',a,'b',b,'c',c,'d',d,'yc',yc,'g',g,'n',n,'drag',drag,'min_gap',min_gap);
+params = struct('m',m,'a',a,'b',b,'c',c,'d',d,'yc',yc,'g',g,'n',n, ...
+    'drag',drag,'min_gap',min_gap, 'e', e, 'umax', umax);
 
 
 y10_range = 0.1:0.1:6.5; %initial try 
